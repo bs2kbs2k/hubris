@@ -6,6 +6,8 @@
 use crate::common::{
     hash_digest_sha256, hash_finalize_sha256, hash_init_sha256, hash_update,
 };
+#[cfg(feature = "fpga")]
+use crate::common::fpga_write_bitstream_chunk;
 #[cfg(feature = "spi")]
 use crate::common::{spi_read, spi_write};
 use hif::*;
@@ -130,6 +132,8 @@ pub enum Functions {
     HashFinalize((), drv_hash_api::HashError),
     #[cfg(feature = "rng")]
     Rng(usize, drv_rng_api::RngError),
+    #[cfg(feature = "fpga")]
+    FpgaWriteBitstreamChunk((), drv_fpga_api::FpgaError),
 }
 
 #[cfg(feature = "i2c")]
@@ -592,6 +596,8 @@ pub(crate) static HIFFY_FUNCS: &[Function] = &[
     hash_finalize_sha256,
     #[cfg(feature = "rng")]
     crate::common::rng_fill,
+    #[cfg(feature = "fpga")]
+    fpga_write_bitstream_chunk,
 ];
 
 //

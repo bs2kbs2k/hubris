@@ -4,7 +4,7 @@
 
 use hif::{Failure, Fault};
 use hubris_num_tasks::NUM_TASKS;
-use userlib::{sys_refresh_task_id, sys_send, Generation, TaskId};
+use userlib::{sys_refresh_task_id, sys_send, Generation, TaskId, task_slot};
 
 /// We allow dead code on this because the functions below are optional.
 ///
@@ -575,4 +575,29 @@ pub(crate) fn rng_fill(
 
     func_err(Rng::from(RNG.get_task_id()).fill(&mut rval[0..count]))?;
     Ok(count)
+}
+
+#[cfg(feature = "fpga")]
+task_slot!(FPGA, fpga);
+
+#[cfg(feature = "fpga")]
+pub(crate) fn fpga_write_bitstream_chunk(
+    stack: &[Option<u32>],
+    data: &[u8],
+    _rval: &mut [u8],
+) -> Result<usize, Failure> {
+    use drv_fpga_api::Fpga;
+
+    if stack.len() < 1 {
+        return Err(Failure::Fault(Fault::BadParameter(0)));
+    }
+
+    let len = stack[0].ok_or(Failure::Fault(Fault::BadParameter(1)))? as usize;
+    let server = Fpga::from(FPGA.get_task_id());
+
+    for chunk in &mut data[..len].chunks(128) {
+        func_err(server.continue_bitstream_load(chunk))?;
+    }
+
+    Ok(0)
 }

@@ -624,6 +624,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "drv-ecp5"
+version = "0.1.0"
+dependencies = [
+ "bitfield",
+ "build-util",
+ "cfg-if 1.0.0",
+ "drv-spi-api",
+ "drv-stm32xx-sys-api",
+ "hubris-num-tasks",
+ "idol",
+ "num-traits",
+ "ringbuf",
+ "userlib",
+ "zerocopy",
+]
+
+[[package]]
 name = "drv-eeprom"
 version = "0.1.0"
 dependencies = [
@@ -959,10 +976,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "drv-sidecar-mainboard-controller-api"
+version = "0.1.0"
+dependencies = [
+ "build-util",
+ "drv-fpga-api",
+ "gnarle",
+ "num-traits",
+ "serde",
+ "serde_json",
+ "userlib",
+ "zerocopy",
+]
+
+[[package]]
 name = "drv-sidecar-seq-api"
 version = "0.1.0"
 dependencies = [
  "derive-idol-err",
+ "drv-fpga-api",
+ "drv-sidecar-mainboard-controller-api",
  "idol",
  "num-traits",
  "userlib",
@@ -978,8 +1011,10 @@ dependencies = [
  "byteorder",
  "cfg-if 0.1.10",
  "cortex-m",
+ "drv-fpga-api",
  "drv-i2c-api",
  "drv-i2c-devices",
+ "drv-sidecar-mainboard-controller-api",
  "drv-sidecar-seq-api",
  "drv-spi-api",
  "drv-stm32xx-sys-api",
@@ -2806,6 +2841,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "task-ecp5-client"
+version = "0.1.0"
+dependencies = [
+ "drv-ecp5",
+ "drv-stm32xx-sys-api",
+ "hubris-num-tasks",
+ "ringbuf",
+ "userlib",
+]
+
+[[package]]
 name = "task-hiffy"
 version = "0.1.0"
 dependencies = [
@@ -2816,6 +2862,7 @@ dependencies = [
  "byteorder",
  "cfg-if 0.1.10",
  "cortex-m",
+ "drv-fpga-api",
  "drv-gimlet-hf-api",
  "drv-hash-api",
  "drv-i2c-api",

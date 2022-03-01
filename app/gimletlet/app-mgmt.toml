@@ -150,3 +150,5 @@ owner = {name = "udpecho", notification = 1}
 port = 7
 tx = { packets = 3, bytes = 1024 }
 rx = { packets = 3, bytes = 1024 }
+
+[config.notifications]

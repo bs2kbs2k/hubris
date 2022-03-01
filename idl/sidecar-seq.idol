@@ -3,17 +3,34 @@
 Interface(
     name: "Sequencer",
     ops: {
-        "get_state": (
-            doc: "Return the power state",
+        "tofino_seq_state": (
+            doc: "Return the Tofino sequencer state",
             reply: Result(
                 ok: (
-                    type: "PowerState",
+                    type: "State",
                     recv: FromPrimitive("u8"),
                 ),
                 err: CLike("SeqError"),
             ),
         ),
-        "set_state": (
+        "tofino_seq_error": (
+            doc: "Return the Tofino sequencer error, if any",
+            reply: Result(
+                ok: (
+                    type: "Error",
+                    recv: FromPrimitive("u8"),
+                ),
+                err: CLike("SeqError"),
+            ),
+        ),
+        "tofino_power_status": (
+            doc: "Return the Tofino sequencer power registers",
+            reply: Result(
+                ok: "u32",
+                err: CLike("SeqError"),
+            )
+        ),
+        "set_tofino_state": (
             doc: "Set the power state",
             args: {
                 "state": (
@@ -26,17 +43,19 @@ Interface(
                 err: CLike("SeqError"),
             ),
         ),
-        "load_clock_config": (
-            args: {},
-            reply: Result(
-                ok: "()",
-                err: CLike("SeqError"),
-            ),
-        ),
+
         "is_clock_config_loaded": (
             args: {},
             reply: Result(
                 ok: "u8",
+                err: CLike("SeqError"),
+            ),
+        ),
+
+        "load_clock_config": (
+            args: {},
+            reply: Result(
+                ok: "()",
                 err: CLike("SeqError"),
             ),
         ),

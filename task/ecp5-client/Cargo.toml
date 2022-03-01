@@ -1,0 +1,18 @@
+[package]
+name = "task-ecp5-client"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+
+[dependencies]
+userlib = {path = "../../sys/userlib"}
+ringbuf = {path = "../../lib/ringbuf"}
+drv-ecp5 = {path = "../../drv/ecp5"}
+drv-stm32xx-sys-api = {path = "../../drv/stm32xx-sys-api", features = ["family-stm32h7"]}
+hubris-num-tasks = {path = "../../sys/num-tasks", features = ["task-enum"]}
+
+[[bin]]
+name = "task-ecp5-client"
+test = false
+bench = false

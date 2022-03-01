@@ -154,19 +154,19 @@ pub fn decompress<'a>(
                     n += 1;
                 }
                 None => break,
-            },
+            }
             DState::AwaitingByte => match take_byte(input) {
                 Some(byte) => {
                     state.0 = DState::AwaitingCount(byte);
                 }
                 None => break,
-            },
+            }
             DState::AwaitingCount(byte) => match take_byte(input) {
                 Some(count) => {
                     state.0 = DState::Repeating(*byte, count);
                 }
                 None => break,
-            },
+            }
         }
     }
 

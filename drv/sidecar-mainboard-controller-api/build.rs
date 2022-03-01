@@ -2,23 +2,16 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//use serde::Deserialize;
+use serde::Deserialize;
 use std::fmt::Write;
 use std::{env, fs, path::PathBuf};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     build_util::expose_target_board();
 
-    let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    let disposition = build_i2c::Disposition::Devices;
+    let out_dir = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
 
-    if let Err(e) = build_i2c::codegen(disposition) {
-        println!("code generation failed: {}", e);
-        std::process::exit(1);
-    }
-
-    /*
-    fs::write(out.join("sidecar_mainboard_controller.rs"), regs()?)?;
+    fs::write(out_dir.join("sidecar_mainboard_controller.rs"), regs()?)?;
 
     let ecp5_bitstream_name = match env::var("HUBRIS_BOARD")?.as_str() {
         "gimletlet-2" => "sidecar_mainboard_emulator_ecp5_evn.bit",
@@ -30,45 +23,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let fpga_bitstream = fs::read(ecp5_bitstream_name)?;
     let compressed_fpga_bitstream = compress(&fpga_bitstream);
-    let out_dir = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
 
     fs::write(out_dir.join("ecp5.bin.rle"), &compressed_fpga_bitstream)?;
-
-    let mut decompressed_fpga_bitstream = Vec::with_capacity(fpga_bitstream.len());
-    let mut buffer = [0u8; 256];
-    let mut decompressor = gnarle::Decompressor::default();
-
-    for chunk in compressed_fpga_bitstream[..].chunks(128) {
-    //    println!("Chunk len: {}, decompressor: {:?}", chunk.len(), decompressor);
-        let chunk_slice = &mut &*chunk;
-
-        while !chunk_slice.is_empty() {
-            let out = gnarle::decompress(&mut decompressor, chunk_slice, &mut buffer);
-            println!("{:02x}", out.len());
-            decompressed_fpga_bitstream.extend_from_slice(&out);
-        }
-    }
-
-    println!("len: {}", decompressed_fpga_bitstream.len());
-    fs::write(out_dir.join("ecp5.bin.decompressed"), decompressed_fpga_bitstream)?;
-
-    //std::process::exit(1);
 
     // Make sure the app image is rebuilt if the bitstream file for this target
     // changes.
     println!("cargo:rerun-if-changed={}", ecp5_bitstream_name);
-    */
-
-    idol::server::build_server_support(
-        "../../idl/sidecar-seq.idol",
-        "server_stub.rs",
-        idol::server::ServerStyle::InOrder,
-    )?;
 
     Ok(())
 }
 
-/*
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 enum Node {
@@ -201,4 +165,3 @@ fn compress(input: &[u8]) -> Vec<u8> {
 
     output
 }
-*/
