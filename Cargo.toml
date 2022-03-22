@@ -59,6 +59,7 @@ members = [
     "task/validate",
     "task/validate-api",
     "task/vsc7448",
+    "task/pinetime-lcd",
 
     "drv/stm32fx-rcc",
     "drv/stm32fx-usart",
@@ -96,6 +97,9 @@ members = [
 
     "drv/nrf52832-spi",
     "drv/nrf52832-spi-server",
+    "drv/nrf52832-gpio",
+    "drv/nrf52832-gpio-api",
+    "drv/nrf52832-gpio-common",
 
     "drv/user-leds",
     "drv/user-leds-api",
