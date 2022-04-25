@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{Addr, Reg};
-use drv_fpga_api::{Fpga, FpgaError, WriteOp};
+use drv_fpga_api::{FpgaApplication, FpgaError, WriteOp};
 use userlib::FromPrimitive;
 use zerocopy::AsBytes;
 
@@ -44,22 +44,23 @@ pub enum Vid {
 }
 
 pub struct Sequencer {
-    fpga: Fpga,
+    fpga: FpgaApplication,
 }
 
 impl Sequencer {
-    pub fn new(fpga: Fpga) -> Self {
-        Self { fpga }
+    pub fn new(task_id: userlib::TaskId) -> Self {
+        Self {
+            fpga: FpgaApplication::new(task_id),
+        }
     }
 
     fn read_masked(&self, addr: Addr, mask: u8) -> Result<u8, FpgaError> {
-        let v: u8 = self.fpga.application_read(addr)?;
+        let v: u8 = self.fpga.read(addr)?;
         Ok(v & mask)
     }
 
     fn write_ctrl(&self, op: WriteOp, value: u8) -> Result<(), FpgaError> {
-        self.fpga
-            .application_write(op, Addr::TOFINO_SEQ_CTRL, value)
+        self.fpga.write(op, Addr::TOFINO_SEQ_CTRL, value)
     }
 
     pub fn clear_error(&self) -> Result<(), FpgaError> {
@@ -116,7 +117,7 @@ impl Sequencer {
     }
 
     pub fn power_status(&self) -> Result<u32, FpgaError> {
-        self.fpga.application_read(Addr::TOFINO_POWER_ENABLE)
+        self.fpga.read(Addr::TOFINO_POWER_ENABLE)
     }
 
     pub fn vid(&self) -> Result<Option<Vid>, FpgaError> {

@@ -593,11 +593,14 @@ pub(crate) fn fpga_write_bitstream_chunk(
     }
 
     let len = stack[0].ok_or(Failure::Fault(Fault::BadParameter(1)))? as usize;
+
+    /*
     let server = Fpga::from(FPGA.get_task_id());
 
     for chunk in &mut data[..len].chunks(128) {
         func_err(server.continue_bitstream_load(chunk))?;
     }
+    */
 
     Ok(0)
 }

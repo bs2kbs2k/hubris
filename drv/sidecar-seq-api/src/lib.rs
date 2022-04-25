@@ -7,10 +7,10 @@
 #![no_std]
 
 use derive_idol_err::IdolError;
+use drv_fpga_api::FpgaError;
+use drv_sidecar_mainboard_controller_api::tofino2::{Error, State};
 use userlib::*;
 use zerocopy::AsBytes;
-use drv_fpga_api::FpgaError;
-use drv_sidecar_mainboard_controller_api::tofino2::{State, Error};
 
 #[derive(Copy, Clone, Debug, FromPrimitive, PartialEq, IdolError)]
 pub enum SeqError {

@@ -71,9 +71,11 @@ impl ServerImpl {
             let (device, rail) = i2c_config::pmbus::v0p8_tf2_vdd_core(i2c);
             let mut vddcore = Raa229618::new(&device, rail);
 
+            /*
             vddcore
                 .set_vout(value)
                 .map_err(|_| SeqError::SetVddCoreVoutFailed)?;
+            */
 
             ringbuf_entry!(Trace::SetVddCoreVout(value));
             Ok(())
@@ -263,17 +265,13 @@ fn main() -> ! {
 
     let mut server = ServerImpl {
         clockgen: devices::idt8a34001(I2C.get_task_id())[0],
-        mainboard_controller: MainboardController::new(Fpga::from(
-            FPGA.get_task_id(),
-        )),
-        tofino_sequencer: tofino2::Sequencer::new(Fpga::from(
-            FPGA.get_task_id(),
-        )),
+        mainboard_controller: MainboardController::new(FPGA.get_task_id()),
+        tofino_sequencer: tofino2::Sequencer::new(FPGA.get_task_id()),
         deadline,
         clock_config_loaded: false,
     };
 
-    server.mainboard_controller.await_fpga_ready(50).unwrap();
+    server.mainboard_controller.reset_fpga().unwrap();
 
     if let Err(e) = server.mainboard_controller.load_bitstream() {
         ringbuf_entry!(Trace::FpgaBitstreamLoadError(
