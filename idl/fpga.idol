@@ -10,7 +10,7 @@ Interface(
                 err: CLike("FpgaError"),
             ),
         ),
-        "set_device_enable": (
+        "set_device_enabled": (
             doc: "Enable or disable the FPGA",
             args: {
                 "enabled": "bool",
@@ -82,7 +82,7 @@ Interface(
                 err: CLike("FpgaError"),
             ),
         ),
-        "set_application_enable": (
+        "set_application_enabled": (
             doc: "Set the reset state for the application",
             args: {
                 "enabled": "bool",
@@ -128,6 +128,22 @@ Interface(
                 ok: "()",
                 err: CLike("FpgaError"),
             )
+        ),
+        "lock": (
+            doc: "Take exclusive control of this FPGA or the application.",
+            args: {},
+            reply: Result(
+                ok: "()",
+                err: CLike("FpgaError"),
+            ),
+        ),
+        "release": (
+            doc: "Release a previously acquired lock.",
+            args: {},
+            reply: Result(
+                ok: "()",
+                err: CLike("FpgaError"),
+            ),
         ),
     },
 )

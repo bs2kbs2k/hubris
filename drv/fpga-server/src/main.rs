@@ -27,6 +27,8 @@ enum Trace {
     StartBitstreamLoad(BitstreamType),
     ContinueBitstreamLoad(usize),
     FinishBitstreamLoad,
+    Locked(TaskId),
+    Released(TaskId),
 }
 ringbuf!(Trace, 16, Trace::None);
 
@@ -62,12 +64,13 @@ fn main() -> ! {
 
     let mut incoming = [0u8; idl::INCOMING_SIZE];
     let mut server = ServerImpl {
-        device: Ecp5::from(driver),
+        lock_holder: None,
+        device: Ecp5::new(driver),
         device_reset_ticks: ecp5::DEVICE_RESET_DURATION,
         application: Spi::from(SPI.get_task_id()).device(1),
         application_reset_ticks: ecp5::APPLICATION_RESET_DURATION,
         buffer: [0u8; 128],
-        decompressor: None,
+        bitstream_loader: BitstreamLoader::None,
     };
 
     if let Ok(DeviceState::AwaitingBitstream) = server.device.device_state() {
@@ -79,13 +82,20 @@ fn main() -> ! {
     }
 }
 
+enum BitstreamLoader {
+    None,
+    UncompressedLoadInprogress,
+    CompressedLoadInProgress(gnarle::Decompressor),
+}
+
 struct ServerImpl<FpgaT: Fpga> {
+    lock_holder: Option<userlib::TaskId>,
     device: FpgaT,
     device_reset_ticks: u64,
     application: SpiDevice,
     application_reset_ticks: u64,
     buffer: [u8; 128],
-    decompressor: Option<gnarle::Decompressor>,
+    bitstream_loader: BitstreamLoader,
 }
 
 type RequestError = idol_runtime::RequestError<FpgaError>;
@@ -93,6 +103,47 @@ type ReadDataLease = LenLimit<Leased<R, [u8]>, 128>;
 type WriteDataLease = LenLimit<Leased<W, [u8]>, 128>;
 
 impl<FpgaT: Fpga> idl::InOrderFpgaImpl for ServerImpl<FpgaT> {
+    fn recv_source(&self) -> Option<userlib::TaskId> {
+        self.lock_holder
+    }
+
+    fn closed_recv_fail(&mut self) {
+        // Welp, someone had asked us to lock and then died. Release the
+        // lock.
+        self.lock_holder = None;
+    }
+
+    fn lock(&mut self, msg: &userlib::RecvMessage) -> Result<(), RequestError> {
+        if let Some(task) = self.lock_holder {
+            // The fact that we received this message _at all_ means
+            // that the sender matched our closed receive, but just
+            // in case we have a server logic bug, let's check.
+            assert!(task == msg.sender);
+        }
+
+        self.lock_holder = Some(msg.sender);
+        ringbuf_entry!(Trace::Locked(msg.sender));
+        Ok(())
+    }
+
+    fn release(
+        &mut self,
+        msg: &userlib::RecvMessage,
+    ) -> Result<(), RequestError> {
+        if let Some(task) = self.lock_holder {
+            // The fact that we received this message _at all_ means
+            // that the sender matched our closed receive, but just
+            // in case we have a server logic bug, let's check.
+            assert!(task == msg.sender);
+
+            self.lock_holder = None;
+            ringbuf_entry!(Trace::Released(msg.sender));
+            Ok(())
+        } else {
+            Err(FpgaError::NotLocked.into())
+        }
+    }
+
     fn device_enabled(
         &mut self,
         _: &RecvMessage,
@@ -100,12 +151,12 @@ impl<FpgaT: Fpga> idl::InOrderFpgaImpl for ServerImpl<FpgaT> {
         Ok(self.device.device_enabled()?)
     }
 
-    fn set_device_enable(
+    fn set_device_enabled(
         &mut self,
         _: &RecvMessage,
         enabled: bool,
     ) -> Result<(), RequestError> {
-        Ok(self.device.set_device_enable(enabled)?)
+        Ok(self.device.set_device_enabled(enabled)?)
     }
 
     fn reset_device(&mut self, _: &RecvMessage) -> Result<(), RequestError> {
@@ -130,12 +181,12 @@ impl<FpgaT: Fpga> idl::InOrderFpgaImpl for ServerImpl<FpgaT> {
         Ok(self.device.application_enabled()?)
     }
 
-    fn set_application_enable(
+    fn set_application_enabled(
         &mut self,
         _: &RecvMessage,
         enabled: bool,
     ) -> Result<(), RequestError> {
-        Ok(self.device.set_application_enable(enabled)?)
+        Ok(self.device.set_application_enabled(enabled)?)
     }
 
     fn reset_application(
@@ -153,7 +204,11 @@ impl<FpgaT: Fpga> idl::InOrderFpgaImpl for ServerImpl<FpgaT> {
         bitstream_type: BitstreamType,
     ) -> Result<(), RequestError> {
         if let BitstreamType::Compressed = bitstream_type {
-            self.decompressor = Some(gnarle::Decompressor::default())
+            self.bitstream_loader = BitstreamLoader::CompressedLoadInProgress(
+                gnarle::Decompressor::default(),
+            );
+        } else {
+            self.bitstream_loader = BitstreamLoader::UncompressedLoadInprogress;
         }
         self.device.start_bitstream_load()?;
         ringbuf_entry!(Trace::StartBitstreamLoad(bitstream_type));
@@ -168,21 +223,24 @@ impl<FpgaT: Fpga> idl::InOrderFpgaImpl for ServerImpl<FpgaT> {
         data.read_range(0..data.len(), &mut self.buffer[..data.len()])
             .map_err(|_| RequestError::Fail(ClientError::WentAway))?;
 
-        let chunk = &mut &self.buffer[..data.len()];
+        let mut chunk = &self.buffer[..data.len()];
         let mut decompress_buffer = [0; 256];
 
-        match self.decompressor.as_mut() {
-            Some(decompressor) => {
+        match &mut self.bitstream_loader {
+            BitstreamLoader::UncompressedLoadInprogress => {
+                self.device.continue_bitstream_load(chunk)?
+            }
+            BitstreamLoader::CompressedLoadInProgress(decompressor) => {
                 while !chunk.is_empty() {
                     let decompressed_chunk = gnarle::decompress(
                         decompressor,
-                        chunk,
+                        &mut chunk,
                         &mut decompress_buffer,
                     );
                     self.device.continue_bitstream_load(decompressed_chunk)?;
                 }
             }
-            None => self.device.continue_bitstream_load(chunk)?,
+            BitstreamLoader::None => panic!(),
         }
 
         ringbuf_entry!(Trace::ContinueBitstreamLoad(data.len()));
@@ -193,7 +251,11 @@ impl<FpgaT: Fpga> idl::InOrderFpgaImpl for ServerImpl<FpgaT> {
         &mut self,
         _: &RecvMessage,
     ) -> Result<(), RequestError> {
-        self.decompressor = None;
+        if let BitstreamLoader::None = self.bitstream_loader {
+            panic!()
+        }
+
+        self.bitstream_loader = BitstreamLoader::None;
         self.device
             .finish_bitstream_load(self.application_reset_ticks)?;
         ringbuf_entry!(Trace::FinishBitstreamLoad);

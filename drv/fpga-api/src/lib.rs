@@ -17,6 +17,7 @@ pub enum FpgaError {
     InvalidState,
     InvalidValue,
     PortDisabled,
+    NotLocked,
 }
 
 impl From<FpgaError> for u16 {
@@ -29,6 +30,7 @@ impl From<FpgaError> for u16 {
             FpgaError::InvalidState => 0x0300,
             FpgaError::InvalidValue => 0x0301,
             FpgaError::PortDisabled => 0x0400,
+            FpgaError::NotLocked => 0x0500,
         }
     }
 }
@@ -56,6 +58,7 @@ impl core::convert::TryFrom<u16> for FpgaError {
                 0x0300 => Ok(FpgaError::InvalidState),
                 0x0301 => Ok(FpgaError::InvalidValue),
                 0x0400 => Ok(FpgaError::PortDisabled),
+                0x0500 => Ok(FpgaError::NotLocked),
                 _ => Err(()),
             },
         }
@@ -104,22 +107,99 @@ impl From<WriteOp> for u8 {
     }
 }
 
-include!(concat!(env!("OUT_DIR"), "/client_stub.rs"));
+pub struct FpgaLock<'a>(&'a idl::Fpga);
+
+impl Drop for FpgaLock<'_> {
+    fn drop(&mut self) {
+        // We ignore the result of release because, if the server has restarted,
+        // we don't need to do anything.
+        self.0.release().ok();
+    }
+}
+
+pub struct Fpga(idl::Fpga);
 
 impl Fpga {
-    pub fn application_read<T>(
-        &self,
-        addr: impl Into<u16>,
-    ) -> Result<T, FpgaError>
+    pub fn new(task_id: userlib::TaskId) -> Self {
+        Self(idl::Fpga::from(task_id))
+    }
+
+    pub fn enabled(&self) -> Result<bool, FpgaError> {
+        self.0.device_enabled()
+    }
+
+    pub fn set_enabled(&mut self, enabled: bool) -> Result<(), FpgaError> {
+        self.0.set_device_enabled(enabled)
+    }
+
+    pub fn reset(&mut self) -> Result<(), FpgaError> {
+        self.0.reset_device()
+    }
+
+    pub fn state(&self) -> Result<DeviceState, FpgaError> {
+        self.0.device_state()
+    }
+
+    pub fn id(&self) -> Result<u32, FpgaError> {
+        self.0.device_id()
+    }
+
+    pub fn start_bitstream_load(
+        &mut self,
+        bitstream_type: BitstreamType,
+    ) -> Result<Bitstream, FpgaError> {
+        let bitstream = Bitstream(self.lock()?);
+        bitstream.0 .0.start_bitstream_load(bitstream_type)?;
+        Ok(bitstream)
+    }
+
+    pub fn lock(&mut self) -> Result<FpgaLock, FpgaError> {
+        self.0.lock()?;
+        Ok(FpgaLock(&self.0))
+    }
+}
+
+pub struct Bitstream<'a>(FpgaLock<'a>);
+
+impl Bitstream<'_> {
+    pub fn continue_load(&mut self, data: &[u8]) -> Result<(), FpgaError> {
+        self.0 .0.continue_bitstream_load(data)
+    }
+
+    pub fn finish_load(&mut self) -> Result<(), FpgaError> {
+        self.0 .0.finish_bitstream_load()
+    }
+}
+
+pub struct FpgaApplication(idl::Fpga);
+
+impl FpgaApplication {
+    pub fn new(task_id: userlib::TaskId) -> Self {
+        Self(idl::Fpga::from(task_id))
+    }
+
+    pub fn enabled(&self) -> Result<bool, FpgaError> {
+        self.0.application_enabled()
+    }
+
+    pub fn set_enabled(&mut self, enabled: bool) -> Result<(), FpgaError> {
+        self.0.set_application_enabled(enabled)
+    }
+
+    pub fn reset(&mut self) -> Result<(), FpgaError> {
+        self.0.reset_application()
+    }
+
+    pub fn read<T>(&self, addr: impl Into<u16>) -> Result<T, FpgaError>
     where
         T: AsBytes + Default + FromBytes,
     {
         let mut v = T::default();
-        self.application_read_raw(addr.into(), v.as_bytes_mut())?;
+        self.0.application_read_raw(addr.into(), v.as_bytes_mut())?;
         Ok(v)
     }
 
-    pub fn application_write<T>(
+    pub fn write<T>(
         &self,
         op: WriteOp,
         addr: impl Into<u16>,
@@ -128,6 +208,20 @@ impl Fpga {
     where
         T: AsBytes + FromBytes,
     {
-        Ok(self.application_write_raw(op, addr.into(), value.as_bytes())?)
+        Ok(self
+            .0
+            .application_write_raw(op, addr.into(), value.as_bytes())?)
     }
+
+    pub fn lock(&self) -> Result<FpgaLock, FpgaError> {
+        self.0.lock()?;
+        Ok(FpgaLock(&self.0))
+    }
+}
+
+mod idl {
+    use super::{BitstreamType, DeviceState, FpgaError, WriteOp};
+    use userlib::*;
+
+    include!(concat!(env!("OUT_DIR"), "/client_stub.rs"));
 }

@@ -18,12 +18,16 @@ pub mod ecp5_spi;
 pub trait Fpga {
     /// Determine if the device is enabled (i.e. not in reset).
     fn device_enabled(&self) -> Result<bool, FpgaError>;
+
     /// Set whether or not the device is enabled.
-    fn set_device_enable(&mut self, enabled: bool) -> Result<(), FpgaError>;
+    fn set_device_enabled(&mut self, enabled: bool) -> Result<(), FpgaError>;
+
     /// Reset the device, allowing it to load a bitstream.
     fn reset_device(&mut self, ticks: u64) -> Result<(), FpgaError>;
+
     /// Return the current device state.
     fn device_state(&self) -> Result<DeviceState, FpgaError>;
+
     /// Return the device ID, if any.
     fn device_id(&self) -> Result<u32, FpgaError>;
 
@@ -31,9 +35,11 @@ pub trait Fpga {
     /// where a bitstream can be loaded is a precondition for this method to
     /// execute correctly.
     fn start_bitstream_load(&mut self) -> Result<(), FpgaError>;
+
     /// Load the next chunk of the bitstream.
     fn continue_bitstream_load(&mut self, data: &[u8])
         -> Result<(), FpgaError>;
+
     /// Finish loading the bitstream, allowing the device to transition to
     /// application mode.
     fn finish_bitstream_load(
@@ -43,11 +49,13 @@ pub trait Fpga {
 
     /// Determine if the bitstream application is enabled (i.e. not in reset).
     fn application_enabled(&self) -> Result<bool, FpgaError>;
+
     /// Set whether or not the bitstream application is enabled.
-    fn set_application_enable(
+    fn set_application_enabled(
         &mut self,
         enabled: bool,
     ) -> Result<(), FpgaError>;
+
     /// Reset the bitstream application.
     fn reset_application(&mut self, ticks: u64) -> Result<(), FpgaError>;
 }

@@ -2,68 +2,37 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::Fpga;
+use crate::Fpga;
 use bitfield::bitfield;
 use drv_fpga_api::{DeviceState, FpgaError};
 use ringbuf::*;
 use userlib::*;
 use zerocopy::{AsBytes, FromBytes};
 
-/// ECP5 IDCODE values.
-#[derive(Copy, Clone, Debug, FromPrimitive, PartialEq, AsBytes)]
-#[repr(u8)]
+/// ECP5 IDCODE values, found in Table B.5, p. 58, Lattice Semi FPGA-TN-02039-2.0.
+#[derive(
+    Copy, Clone, Debug, FromPrimitive, ToPrimitive, PartialEq, AsBytes,
+)]
+#[repr(u32)]
 pub enum Id {
-    Invalid,
-    Lfe5u12,
-    Lfe5u25,
-    Lfe5u45,
-    Lfe5u85,
-    Lfe5um25,
-    Lfe5um45,
-    Lfe5um85,
-    Lfe5um5g25,
-    Lfe5um5g45,
-    Lfe5um5g85,
+    Invalid = 0,
+    Lfe5u12 = 0x21111043,
+    Lfe5u25 = 0x41111043,
+    Lfe5u45 = 0x41112043,
+    Lfe5u85 = 0x41113043,
+    Lfe5um25 = 0x01111043,
+    Lfe5um45 = 0x01112043,
+    Lfe5um85 = 0x01113043,
+    Lfe5um5g25 = 0x81111043,
+    Lfe5um5g45 = 0x81112043,
+    Lfe5um5g85 = 0x81113043,
 }
 
-impl From<u32> for Id {
-    fn from(x: u32) -> Self {
-        match x {
-            0x21111043 => Id::Lfe5u12,
-            0x41111043 => Id::Lfe5u25,
-            0x41112043 => Id::Lfe5u45,
-            0x41113043 => Id::Lfe5u85,
-            0x01111043 => Id::Lfe5um25,
-            0x01112043 => Id::Lfe5um45,
-            0x01113043 => Id::Lfe5um85,
-            0x81111043 => Id::Lfe5um5g25,
-            0x81112043 => Id::Lfe5um5g45,
-            0x81113043 => Id::Lfe5um5g85,
-            _ => Id::Invalid,
-        }
-    }
-}
-
-impl From<Id> for u32 {
-    fn from(id: Id) -> Self {
-        match id {
-            Id::Lfe5u12 => 0x21111043,
-            Id::Lfe5u25 => 0x41111043,
-            Id::Lfe5u45 => 0x41112043,
-            Id::Lfe5u85 => 0x41113043,
-            Id::Lfe5um25 => 0x01111043,
-            Id::Lfe5um45 => 0x01112043,
-            Id::Lfe5um85 => 0x01113043,
-            Id::Lfe5um5g25 => 0x81111043,
-            Id::Lfe5um5g45 => 0x81112043,
-            Id::Lfe5um5g85 => 0x81113043,
-            Id::Invalid => 0,
-        }
-    }
-}
-
-/// Possible bitstream error codes returned by the device.
-#[derive(Copy, Clone, Debug, FromPrimitive, PartialEq, AsBytes)]
+/// Possible bitstream error codes returned by the device. These values are
+/// taken from Table 4.2, p. 10, Lattice Semi FPGA-TN-02039-2.0.
+#[derive(
+    Copy, Clone, Debug, FromPrimitive, ToPrimitive, PartialEq, AsBytes,
+)]
 #[repr(u8)]
 pub enum BitstreamError {
     None = 0b000,
@@ -77,6 +46,8 @@ pub enum BitstreamError {
 }
 
 bitfield! {
+    /// The device status register, as found in section 4.2, Table 4.2, p. 10,
+    /// Lattice Semi FPGA-TN-02039-2.0.
     pub struct Status(u32);
     pub transparent_mode, _: 0;
     pub config_target_selection, _: 3, 1;
@@ -109,20 +80,15 @@ bitfield! {
 impl Status {
     /// Decode the bitstream error field.
     pub fn bitstream_error(&self) -> BitstreamError {
-        match self.bse_error_code() {
-            0b001 => BitstreamError::InvalidId,
-            0b010 => BitstreamError::IllegalCommand,
-            0b011 => BitstreamError::CrcMismatch,
-            0b100 => BitstreamError::InvalidPreamble,
-            0b101 => BitstreamError::UserAbort,
-            0b110 => BitstreamError::DataOverflow,
-            0b111 => BitstreamError::SramDataOverflow,
-            _ => BitstreamError::None,
-        }
+        BitstreamError::from_u32(self.bse_error_code())
+            .unwrap_or(BitstreamError::None)
     }
 }
 
 /// Command opcodes which can be sent to the device while in ConfigurationMode.
+/// This is a subset of Table 6.4, p. 32, Lattice Semi FPGA-TN-02039-2.0. The
+/// table header suggests these are opcodes for SPI commands, but they seem to
+/// apply to JTAG as well.
 #[derive(Copy, Clone, Debug, FromPrimitive, PartialEq, AsBytes)]
 #[repr(u8)]
 pub enum Command {
@@ -145,9 +111,7 @@ enum Trace {
     Disabled,
     Enabled,
     Command(Command),
-    ReadId(u32, Id),
-    ReadUserCode(u32),
-    ReadStatus(u32),
+    ReadId(Id),
     Read32(Command, u32),
     StandardBitstreamDetected,
     EncryptedBitstreamDetected,
@@ -212,6 +176,11 @@ pub struct Ecp5<ImplT: Ecp5Impl>(ImplT);
 
 /// Additional ECP5 methods to help implement high level behavior.
 impl<ImplT: Ecp5Impl> Ecp5<ImplT> {
+    /// Allocate a new `Ecp5` device from the given implmenetation.
+    pub fn new(driver: ImplT) -> Self {
+        Ecp5(driver)
+    }
+
     /// Send a command to the device which does not return or require additional
     /// data. FPGA-TN-02039-2.0, 6.2.5 refers to this as a Class C command.
     pub fn send_command(&self, c: Command) -> Result<(), ImplT::Error> {
@@ -246,22 +215,13 @@ impl<ImplT: Ecp5Impl> Ecp5<ImplT> {
     /// Send a `Command` and read back four bytes of data.
     pub fn read32(&self, c: Command) -> Result<u32, ImplT::Error> {
         let v = u32::from_be(self.read(c)?);
-
-        match c {
-            Command::ReadId => {
-                ringbuf_entry!(Trace::ReadId(v, Id::from(v)))
-            }
-            Command::ReadStatus => ringbuf_entry!(Trace::ReadStatus(v)),
-            Command::ReadUserCode => ringbuf_entry!(Trace::ReadUserCode(v)),
-            _ => ringbuf_entry!(Trace::Read32(c, v)),
-        }
-
+        ringbuf_entry!(Trace::Read32(c, v));
         Ok(v)
     }
 
     /// Read the Status register
     pub fn status(&self) -> Result<Status, ImplT::Error> {
-        Ok(Status(self.read32(Command::ReadStatus)?))
+        self.read32(Command::ReadStatus).map(Status)
     }
 
     /// Enable ConfigurationMode, allowing access to certain configuration
@@ -295,12 +255,6 @@ impl<ImplT: Ecp5Impl> Ecp5<ImplT> {
     }
 }
 
-impl<ImplT: Ecp5Impl> From<ImplT> for Ecp5<ImplT> {
-    fn from(i: ImplT) -> Self {
-        Ecp5(i)
-    }
-}
-
 pub const DEVICE_RESET_DURATION: u64 = 25;
 pub const APPLICATION_RESET_DURATION: u64 = 25;
 pub const BUSY_DURATION: u64 = 10;
@@ -316,7 +270,7 @@ where
         Ok(self.0.program_n()?)
     }
 
-    fn set_device_enable(&mut self, enabled: bool) -> Result<(), FpgaError> {
+    fn set_device_enabled(&mut self, enabled: bool) -> Result<(), FpgaError> {
         self.0.set_program_n(enabled)?;
         ringbuf_entry!(if enabled {
             Trace::Enabled
@@ -327,44 +281,43 @@ where
     }
 
     fn reset_device(&mut self, ticks: u64) -> Result<(), FpgaError> {
-        self.set_device_enable(false)?;
+        self.set_device_enabled(false)?;
         hl::sleep_for(ticks);
-        self.set_device_enable(true)?;
+        self.set_device_enabled(true)?;
         Ok(())
     }
 
     fn device_state(&self) -> Result<DeviceState, FpgaError> {
         if !self.0.program_n()? {
             Ok(DeviceState::Disabled)
+        } else if self.0.done()? {
+            Ok(DeviceState::RunningApplication)
+        } else if self.0.init_n()? {
+            Ok(DeviceState::AwaitingBitstream)
         } else {
-            if self.0.done()? {
-                Ok(DeviceState::RunningApplication)
-            } else {
-                if self.0.init_n()? {
-                    Ok(DeviceState::AwaitingBitstream)
-                } else {
-                    Ok(DeviceState::Error)
-                }
-            }
+            Ok(DeviceState::Error)
         }
     }
 
     fn device_id(&self) -> Result<u32, FpgaError> {
-        Ok(self.read32(Command::ReadId)?)
+        let v = self.read32(Command::ReadId)?;
+        let id = Id::from_u32(v).ok_or(FpgaError::InvalidValue)?;
+        ringbuf_entry!(Trace::ReadId(id));
+        Ok(v)
     }
 
     fn start_bitstream_load(&mut self) -> Result<(), FpgaError> {
         // Put device in configuration mode if required.
         if !self.status()?.write_enabled() {
             self.enable_configuration_mode()?;
-        }
 
-        if !self.status()?.write_enabled() {
-            return Err(FpgaError::InvalidState);
+            if !self.status()?.write_enabled() {
+                return Err(FpgaError::InvalidState);
+            }
         }
 
         // Assert the design reset.
-        self.set_application_enable(false)?;
+        self.set_application_enabled(false)?;
 
         self.0.lock()?;
         // Use the Impl to write the command and leave the device locked for the
@@ -422,7 +375,7 @@ where
         self.await_done(DONE_DURATION)?;
 
         hl::sleep_for(application_reset_ticks);
-        self.set_application_enable(true)?;
+        self.set_application_enabled(true)?;
 
         Ok(())
     }
@@ -431,7 +384,7 @@ where
         Ok(!self.0.application_reset_n()?)
     }
 
-    fn set_application_enable(
+    fn set_application_enabled(
         &mut self,
         enabled: bool,
     ) -> Result<(), FpgaError> {
@@ -445,9 +398,9 @@ where
     }
 
     fn reset_application(&mut self, ticks: u64) -> Result<(), FpgaError> {
-        self.set_application_enable(false)?;
+        self.set_application_enabled(false)?;
         hl::sleep_for(ticks);
-        self.set_application_enable(true)?;
+        self.set_application_enabled(true)?;
         Ok(())
     }
 }
