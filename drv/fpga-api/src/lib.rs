@@ -6,6 +6,8 @@
 
 #![no_std]
 
+use core::ops::Deref;
+
 use drv_spi_api::SpiError;
 use userlib::*;
 use zerocopy::{AsBytes, FromBytes};
@@ -107,13 +109,21 @@ impl From<WriteOp> for u8 {
     }
 }
 
-pub struct FpgaLock<'a>(&'a idl::Fpga);
+pub struct FpgaLock(idl::Fpga);
 
-impl Drop for FpgaLock<'_> {
+impl Deref for FpgaLock {
+    type Target = idl::Fpga;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Drop for FpgaLock {
     fn drop(&mut self) {
         // We ignore the result of release because, if the server has restarted,
         // we don't need to do anything.
-        self.0.release().ok();
+        (*self).release().ok();
     }
 }
 
@@ -148,26 +158,26 @@ impl Fpga {
         &mut self,
         bitstream_type: BitstreamType,
     ) -> Result<Bitstream, FpgaError> {
-        let bitstream = Bitstream(self.lock()?);
-        bitstream.0 .0.start_bitstream_load(bitstream_type)?;
-        Ok(bitstream)
+        let lock = self.lock()?;
+        lock.0.start_bitstream_load(bitstream_type)?;
+        Ok(Bitstream(lock))
     }
 
     pub fn lock(&mut self) -> Result<FpgaLock, FpgaError> {
         self.0.lock()?;
-        Ok(FpgaLock(&self.0))
+        Ok(FpgaLock(self.0.clone()))
     }
 }
 
-pub struct Bitstream<'a>(FpgaLock<'a>);
+pub struct Bitstream(FpgaLock);
 
-impl Bitstream<'_> {
+impl Bitstream {
     pub fn continue_load(&mut self, data: &[u8]) -> Result<(), FpgaError> {
-        self.0 .0.continue_bitstream_load(data)
+        (*self.0).continue_bitstream_load(data)
     }
 
     pub fn finish_load(&mut self) -> Result<(), FpgaError> {
-        self.0 .0.finish_bitstream_load()
+        (*self.0).finish_bitstream_load()
     }
 }
 
@@ -215,13 +225,18 @@ impl FpgaApplication {
 
     pub fn lock(&self) -> Result<FpgaLock, FpgaError> {
         self.0.lock()?;
-        Ok(FpgaLock(&self.0))
+        Ok(FpgaLock(self.0.clone()))
     }
 }
 
-mod idl {
+pub mod idl {
     use super::{BitstreamType, DeviceState, FpgaError, WriteOp};
     use userlib::*;
 
     include!(concat!(env!("OUT_DIR"), "/client_stub.rs"));
+}
+
+#[cfg(feature = "hiffy")]
+pub mod hiffy {
+    pub use super::idl::Fpga;
 }

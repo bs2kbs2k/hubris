@@ -248,7 +248,12 @@ impl<ImplT: Ecp5Impl> Ecp5<ImplT> {
 
     /// Wait for the DONE flag to go high.
     pub fn await_done(&self, sleep_ticks: u64) -> Result<(), ImplT::Error> {
+        /*
         while !self.status()?.done() {
+            hl::sleep_for(sleep_ticks);
+        }
+        */
+        while !self.0.done()? {
             hl::sleep_for(sleep_ticks);
         }
         Ok(())

@@ -26,11 +26,12 @@ enum Trace {
     DeviceId(u32),
     StartBitstreamLoad(BitstreamType),
     ContinueBitstreamLoad(usize),
-    FinishBitstreamLoad,
+    FinishBitstreamLoad(usize),
     Locked(TaskId),
     Released(TaskId),
+    ChunkLen(usize),
 }
-ringbuf!(Trace, 16, Trace::None);
+ringbuf!(Trace, 64, Trace::None);
 
 #[export_name = "main"]
 fn main() -> ! {
@@ -84,8 +85,8 @@ fn main() -> ! {
 
 enum BitstreamLoader {
     None,
-    UncompressedLoadInprogress,
-    CompressedLoadInProgress(gnarle::Decompressor),
+    UncompressedLoadInprogress(usize),
+    CompressedLoadInProgress(gnarle::Decompressor, usize),
 }
 
 struct ServerImpl<FpgaT: Fpga> {
@@ -203,13 +204,17 @@ impl<FpgaT: Fpga> idl::InOrderFpgaImpl for ServerImpl<FpgaT> {
         _: &RecvMessage,
         bitstream_type: BitstreamType,
     ) -> Result<(), RequestError> {
-        if let BitstreamType::Compressed = bitstream_type {
-            self.bitstream_loader = BitstreamLoader::CompressedLoadInProgress(
-                gnarle::Decompressor::default(),
-            );
-        } else {
-            self.bitstream_loader = BitstreamLoader::UncompressedLoadInprogress;
-        }
+        self.bitstream_loader = match bitstream_type {
+            BitstreamType::Uncompressed => {
+                BitstreamLoader::UncompressedLoadInprogress(0)
+            }
+            BitstreamType::Compressed => {
+                BitstreamLoader::CompressedLoadInProgress(
+                    gnarle::Decompressor::default(), 0
+                )
+            }
+        };
+
         self.device.start_bitstream_load()?;
         ringbuf_entry!(Trace::StartBitstreamLoad(bitstream_type));
         Ok(())
@@ -224,26 +229,37 @@ impl<FpgaT: Fpga> idl::InOrderFpgaImpl for ServerImpl<FpgaT> {
             .map_err(|_| RequestError::Fail(ClientError::WentAway))?;
 
         let mut chunk = &self.buffer[..data.len()];
-        let mut decompress_buffer = [0; 256];
+        let mut decompress_buffer = [0; 1024];
 
         match &mut self.bitstream_loader {
-            BitstreamLoader::UncompressedLoadInprogress => {
-                self.device.continue_bitstream_load(chunk)?
+            BitstreamLoader::None => panic!(),
+            BitstreamLoader::UncompressedLoadInprogress(bitstream_len) => {
+                self.device.continue_bitstream_load(chunk)?;
+                *bitstream_len += chunk.len();
             }
-            BitstreamLoader::CompressedLoadInProgress(decompressor) => {
+            BitstreamLoader::CompressedLoadInProgress(decompressor, bitstream_len) => {
                 while !chunk.is_empty() {
+                    ringbuf_entry!(Trace::ChunkLen(chunk.len()));
+
                     let decompressed_chunk = gnarle::decompress(
                         decompressor,
                         &mut chunk,
                         &mut decompress_buffer,
                     );
-                    self.device.continue_bitstream_load(decompressed_chunk)?;
+
+                    // The compressor may have encountered a partial run at the
+                    // end of the `chunk`, in which case `deocompressed_chunk`
+                    // will be empty since more data is needed before output is
+                    // generated.
+                    if decompressed_chunk.len() > 0 {
+                        self.device.continue_bitstream_load(decompressed_chunk)?;
+                        *bitstream_len += decompressed_chunk.len();
+                    }
                 }
             }
-            BitstreamLoader::None => panic!(),
         }
 
-        ringbuf_entry!(Trace::ContinueBitstreamLoad(data.len()));
+        //ringbuf_entry!(Trace::ContinueBitstreamLoad(data.len()));
         Ok(())
     }
 
@@ -251,14 +267,21 @@ impl<FpgaT: Fpga> idl::InOrderFpgaImpl for ServerImpl<FpgaT> {
         &mut self,
         _: &RecvMessage,
     ) -> Result<(), RequestError> {
-        if let BitstreamLoader::None = self.bitstream_loader {
-            panic!()
+        match &mut self.bitstream_loader {
+            BitstreamLoader::None => panic!(),
+            BitstreamLoader::UncompressedLoadInprogress(bitstream_len) => {
+                ringbuf_entry!(Trace::FinishBitstreamLoad(*bitstream_len));
+                self.device
+                    .finish_bitstream_load(self.application_reset_ticks)?;
+            }
+            BitstreamLoader::CompressedLoadInProgress(_, bitstream_len) => {
+                ringbuf_entry!(Trace::FinishBitstreamLoad(*bitstream_len));
+                self.device
+                    .finish_bitstream_load(self.application_reset_ticks)?;
+            }
         }
 
         self.bitstream_loader = BitstreamLoader::None;
-        self.device
-            .finish_bitstream_load(self.application_reset_ticks)?;
-        ringbuf_entry!(Trace::FinishBitstreamLoad);
         Ok(())
     }
 
