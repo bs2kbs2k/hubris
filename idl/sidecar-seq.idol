@@ -7,7 +7,7 @@ Interface(
             doc: "Return the Tofino sequencer state",
             reply: Result(
                 ok: (
-                    type: "State",
+                    type: "Tofino2State",
                     recv: FromPrimitive("u8"),
                 ),
                 err: CLike("SeqError"),
@@ -17,7 +17,7 @@ Interface(
             doc: "Return the Tofino sequencer error, if any",
             reply: Result(
                 ok: (
-                    type: "Error",
+                    type: "Tofino2Error",
                     recv: FromPrimitive("u8"),
                 ),
                 err: CLike("SeqError"),

@@ -8,7 +8,7 @@
 
 use derive_idol_err::IdolError;
 use drv_fpga_api::FpgaError;
-use drv_sidecar_mainboard_controller_api::tofino2::{Error, State};
+use drv_sidecar_mainboard_controller_api::tofino2::{Tofino2Error, Tofino2State};
 use userlib::*;
 use zerocopy::AsBytes;
 

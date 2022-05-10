@@ -9,7 +9,10 @@
 
 use drv_fpga_api::{Fpga, FpgaError};
 use drv_i2c_api::{I2cDevice, ResponseCode};
-use drv_sidecar_mainboard_controller_api::{tofino2, MainboardController};
+use drv_sidecar_mainboard_controller_api::tofino2::{
+    Tofino2Error, Tofino2State, Tofino2Vid, Sequencer,
+};
+use drv_sidecar_mainboard_controller_api::MainboardController;
 use drv_sidecar_seq_api::{PowerState, SeqError};
 use drv_stm32xx_sys_api::{self as sys_api, Sys};
 use idol_runtime::{NotificationHandler, RequestError};
@@ -42,8 +45,8 @@ enum Trace {
     SetVddCoreVout(userlib::units::Volts),
     GetState,
     SetState(PowerState, PowerState),
-    TofinoSequencerError(tofino2::Error),
-    TofinoPowerStateChange(tofino2::State, PowerState),
+    TofinoSequencerError(Tofino2Error),
+    TofinoPowerStateChange(Tofino2State, PowerState),
     TofinoVidAck,
 }
 ringbuf!(Trace, 64, Trace::None);
@@ -54,14 +57,14 @@ const TIMER_INTERVAL: u64 = 1000;
 
 struct ServerImpl {
     mainboard_controller: MainboardController,
-    tofino_sequencer: tofino2::Sequencer,
+    tofino_sequencer: Sequencer,
     clockgen: I2cDevice,
     deadline: u64,
     clock_config_loaded: bool,
 }
 
 impl ServerImpl {
-    fn apply_vid(&mut self, vid: tofino2::Vid) -> Result<(), SeqError> {
+    fn apply_vid(&mut self, vid: Tofino2Vid) -> Result<(), SeqError> {
         use userlib::units::Volts;
 
         fn set_vout(value: Volts) -> Result<(), SeqError> {
@@ -82,14 +85,14 @@ impl ServerImpl {
         }
 
         match vid {
-            tofino2::Vid::V0P922 => set_vout(Volts(0.922)),
-            tofino2::Vid::V0P893 => set_vout(Volts(0.893)),
-            tofino2::Vid::V0P867 => set_vout(Volts(0.867)),
-            tofino2::Vid::V0P847 => set_vout(Volts(0.847)),
-            tofino2::Vid::V0P831 => set_vout(Volts(0.831)),
-            tofino2::Vid::V0P815 => set_vout(Volts(0.815)),
-            tofino2::Vid::V0P790 => set_vout(Volts(0.790)),
-            tofino2::Vid::V0P759 => set_vout(Volts(0.759)),
+            Tofino2Vid::V0P922 => set_vout(Volts(0.922)),
+            Tofino2Vid::V0P893 => set_vout(Volts(0.893)),
+            Tofino2Vid::V0P867 => set_vout(Volts(0.867)),
+            Tofino2Vid::V0P847 => set_vout(Volts(0.847)),
+            Tofino2Vid::V0P831 => set_vout(Volts(0.831)),
+            Tofino2Vid::V0P815 => set_vout(Volts(0.815)),
+            Tofino2Vid::V0P790 => set_vout(Volts(0.790)),
+            Tofino2Vid::V0P759 => set_vout(Volts(0.759)),
         }
     }
 
@@ -144,12 +147,12 @@ impl ServerImpl {
             .error()
             .map_err(|_| SeqError::SequencerError)?;
 
-        if seq_error != tofino2::Error::None {
+        if seq_error != Tofino2Error::None {
             ringbuf_entry!(Trace::TofinoSequencerError(seq_error));
             Err(SeqError::SequencerError)
         } else {
             match (seq_state, desired_state) {
-                (tofino2::State::A2, PowerState::A0) => {
+                (Tofino2State::A2, PowerState::A0) => {
                     ringbuf_entry!(Trace::TofinoPowerStateChange(
                         seq_state,
                         desired_state
@@ -197,14 +200,14 @@ impl idl::InOrderSequencerImpl for ServerImpl {
     fn tofino_seq_state(
         &mut self,
         _: &RecvMessage,
-    ) -> Result<tofino2::State, RequestError<SeqError>> {
+    ) -> Result<Tofino2State, RequestError<SeqError>> {
         Ok(self.tofino_sequencer.state().map_err(SeqError::from)?)
     }
 
     fn tofino_seq_error(
         &mut self,
         _: &RecvMessage,
-    ) -> Result<tofino2::Error, RequestError<SeqError>> {
+    ) -> Result<Tofino2Error, RequestError<SeqError>> {
         Ok(self.tofino_sequencer.error().map_err(SeqError::from)?)
     }
 
@@ -266,12 +269,15 @@ fn main() -> ! {
     let mut server = ServerImpl {
         clockgen: devices::idt8a34001(I2C.get_task_id())[0],
         mainboard_controller: MainboardController::new(FPGA.get_task_id()),
-        tofino_sequencer: tofino2::Sequencer::new(FPGA.get_task_id()),
+        tofino_sequencer: Sequencer::new(FPGA.get_task_id()),
         deadline,
         clock_config_loaded: false,
     };
 
-    server.mainboard_controller.reset_fpga().unwrap();
+    server
+        .mainboard_controller
+        .await_fpga_ready_for_bitstream(25)
+        .unwrap();
 
     if let Err(e) = server.mainboard_controller.load_bitstream() {
         ringbuf_entry!(Trace::FpgaBitstreamLoadError(
@@ -287,7 +293,6 @@ fn main() -> ! {
         ringbuf_entry!(Trace::InvalidControllerIdent(ident));
         panic!();
     }
-
     ringbuf_entry!(Trace::ValidControllerIdent(ident));
 
     if let Err(e) = server.load_clock_config() {
@@ -314,8 +319,7 @@ cfg_if::cfg_if! {
 }
 
 mod idl {
-    use super::{PowerState, SeqError};
-    use drv_sidecar_mainboard_controller_api::tofino2::{Error, State};
+    use super::{PowerState, SeqError, Tofino2Error, Tofino2State};
 
     include!(concat!(env!("OUT_DIR"), "/server_stub.rs"));
 }
