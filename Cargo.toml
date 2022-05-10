@@ -92,6 +92,7 @@ members = [
     "drv/fpga-api",
     "drv/fpga-devices",
     "drv/fpga-server",
+    "task/fpga-debug",
 
     "drv/user-leds",
     "drv/user-leds-api",

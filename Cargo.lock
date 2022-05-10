@@ -2852,6 +2852,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "task-fpga-debug"
+version = "0.1.0"
+dependencies = [
+ "build-util",
+ "cfg-if 1.0.0",
+ "drv-fpga-api",
+ "idol",
+ "idol-runtime",
+ "num-traits",
+ "ringbuf",
+ "userlib",
+ "zerocopy",
+]
+
+[[package]]
 name = "task-hiffy"
 version = "0.1.0"
 dependencies = [

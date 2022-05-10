@@ -1,0 +1,37 @@
+// FPGA Debug server IPC interface
+
+Interface(
+    name: "FpgaDebug",
+    ops: {
+        "start_bitstream_load": (
+            doc: "Prepare the device to load a bitstream",
+            args: {
+                "bitstream_type": (
+                    type: "BitstreamType",
+                    recv: FromPrimitive("u8"),
+                )
+            },
+            reply: Result(
+                ok: "()",
+                err: CLike("FpgaError"),
+            ),
+        ),
+        "continue_bitstream_load": (
+            doc: "Load the next chunk of the bitstream",
+            leases: {
+                "data": (type: "[u8]", read: true, max_len: Some(128)),
+            },
+            reply: Result(
+                ok: "()",
+                err: CLike("FpgaError"),
+            ),
+        ),
+        "finish_bitstream_load": (
+            doc: "Finish loading a bitstream",
+            reply: Result(
+                ok: "()",
+                err: CLike("FpgaError"),
+            ),
+        ),
+    },
+)

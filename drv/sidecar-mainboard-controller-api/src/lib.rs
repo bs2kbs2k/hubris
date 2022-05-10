@@ -5,7 +5,7 @@
 #![no_std]
 
 use drv_fpga_api::{
-    BitstreamType, DeviceState, Fpga, FpgaApplication, FpgaError,
+    BitstreamType, DeviceState, Fpga, FpgaApplication, FpgaError, idl::Fpga as FpgaRaw,
 };
 use userlib::hl::sleep_for;
 
@@ -19,6 +19,7 @@ pub mod tofino2;
 pub struct MainboardController {
     fpga: Fpga,
     application: FpgaApplication,
+    fpga_raw: FpgaRaw,
 }
 
 impl MainboardController {
@@ -28,6 +29,7 @@ impl MainboardController {
         Self {
             fpga: Fpga::new(task_id),
             application: FpgaApplication::new(task_id),
+            fpga_raw: FpgaRaw::from(task_id),
         }
     }
 
@@ -53,6 +55,7 @@ impl MainboardController {
     }
 
     pub fn load_bitstream(&mut self) -> Result<(), FpgaError> {
+        /*
         let mut bitstream =
             self.fpga.start_bitstream_load(BitstreamType::Compressed)?;
 
@@ -61,6 +64,15 @@ impl MainboardController {
         }
 
         bitstream.finish_load()
+        */
+
+        self.fpga_raw.start_bitstream_load(BitstreamType::Compressed)?;
+
+        for chunk in COMPRESSED_BITSTREAM[..].chunks(128) {
+            self.fpga_raw.continue_bitstream_load(chunk)?;
+        }
+
+        self.fpga_raw.finish_bitstream_load()
     }
 
     /// Reads the IDENT0:3 registers as a big-endian 32-bit integer.

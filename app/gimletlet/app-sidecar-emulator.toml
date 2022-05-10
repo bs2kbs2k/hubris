@@ -133,11 +133,20 @@ stacksize = 2048
 start = true
 task-slots = ["sys", "spi_driver"]
 
+[tasks.fpga_debug]
+path = "../../task/fpga-debug"
+name = "task-fpga-debug"
+features = []
+priority = 4
+requires = {flash = 8192, ram = 1024}
+start = true
+task-slots = ["sys", "fpga"]
+
 [tasks.sequencer]
 path = "../../drv/sidecar-seq-server"
 name = "drv-sidecar-seq-server"
 features = []
-priority = 2
+priority = 4
 requires = {flash = 262144, ram = 4096 }
 stacksize = 1024
 start = true

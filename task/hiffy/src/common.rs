@@ -586,21 +586,18 @@ pub(crate) fn fpga_write_bitstream_chunk(
     data: &[u8],
     _rval: &mut [u8],
 ) -> Result<usize, Failure> {
-    use drv_fpga_api::Fpga;
+    use drv_fpga_api::hiffy::Fpga;
 
     if stack.len() < 1 {
-        return Err(Failure::Fault(Fault::BadParameter(0)));
+        return Err(Failure::Fault(Fault::MissingParameters));
     }
 
-    let len = stack[0].ok_or(Failure::Fault(Fault::BadParameter(1)))? as usize;
-
-    /*
+    let len = stack[0].ok_or(Failure::Fault(Fault::BadParameter(0)))? as usize;
     let server = Fpga::from(FPGA.get_task_id());
 
     for chunk in &mut data[..len].chunks(128) {
         func_err(server.continue_bitstream_load(chunk))?;
     }
-    */
 
     Ok(0)
 }

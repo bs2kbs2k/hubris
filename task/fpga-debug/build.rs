@@ -2,13 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{env, fs, path::PathBuf};
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    build_util::expose_target_board();
-
     idol::server::build_server_support(
-        "../../idl/fpga.idol",
+        "../../idl/fpga-debug.idol",
         "server_stub.rs",
         idol::server::ServerStyle::InOrder,
     )?;
