@@ -127,6 +127,9 @@ SECTIONS
   /* LMA of .data */
   __sidata = LOADADDR(.data);
 
+  /*
+   * Fill the remaining flash space with a known value
+   */
   /* ### .gnu.sgstubs
      This section contains the TrustZone-M veneers put there by the Arm GNU linker. */
   /* Security Attribution Unit blocks must be 32 bytes aligned. */
@@ -139,6 +142,11 @@ SECTIONS
     . = ALIGN(32);
     __veneer_limit = .;
   } > FLASH
+
+  .fill : {
+    . = .;
+    . += ((ORIGIN(FLASH) + LENGTH(FLASH)) - ABSOLUTE(.));
+  } > FLASH =0xffffffff
 
   /* ### .bss */
   .bss (NOLOAD) : ALIGN(4)
