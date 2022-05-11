@@ -25,7 +25,8 @@
 //! See: https://github.com/rust-lang/rust/issues/73450#issuecomment-650463347
 
 #![no_std]
-#![feature(asm)]
+#![feature(asm_sym)]
+#![feature(asm_const)]
 #![feature(naked_functions)]
 
 #[macro_use]
@@ -36,6 +37,7 @@ pub use num_derive::{FromPrimitive, ToPrimitive};
 pub use num_traits::{FromPrimitive, ToPrimitive};
 pub use unwrap_lite::UnwrapLite;
 
+use core::arch::asm;
 use core::marker::PhantomData;
 
 pub mod hl;

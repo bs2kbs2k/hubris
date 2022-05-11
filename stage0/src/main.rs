@@ -3,7 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #![feature(cmse_nonsecure_entry)]
-#![feature(asm)]
+#![feature(asm_sym)]
+#![feature(asm_const)]
 #![feature(naked_functions)]
 #![feature(array_methods)]
 #![no_main]

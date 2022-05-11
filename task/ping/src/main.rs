@@ -4,7 +4,8 @@
 
 #![no_std]
 #![no_main]
-#![feature(asm)]
+#![feature(asm_sym)]
+#![feature(asm_const)]
 
 use userlib::*;
 
