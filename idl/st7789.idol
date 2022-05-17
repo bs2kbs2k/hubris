@@ -1,0 +1,110 @@
+Interface(
+    name: "ST7789",
+    ops: {
+        "set_pixel": (
+            doc: "Set the pixel at the given coordinates to the given color.",
+            args: {
+                "x": "u16",
+                "y": "u16",
+                "color": "u16",
+            },
+            reply: Result(
+                ok: "()",
+                err: CLike("DisplayError"),
+            ),
+        ),
+        "set_pixels": (
+            doc: "Set the pixels at the given coordinates to the given color.",
+            args: {
+                "x": "u16",
+                "y": "u16",
+                "width": "u16",
+                "height": "u16",
+            },
+            leases: {
+                "colors": (type: "[u16]", read: true, max_len: Some(65535)),
+            },
+            reply: Result(
+                ok: "()",
+                err: CLike("DisplayError"),
+            ),
+        ),
+        "fill_rect": (
+            doc: "Fill the given rectangle with the given color.",
+            args: {
+                "x": "u16",
+                "y": "u16",
+                "width": "u16",
+                "height": "u16",
+                "color": "u16",
+            },
+            reply: Result(
+                ok: "()",
+                err: CLike("DisplayError"),
+            ),
+        ),
+        "fill_display": (
+            doc: "Fill the display with the given color.",
+            args: {
+                "color": "u16",
+            },
+            reply: Result(
+                ok: "()",
+                err: CLike("DisplayError"),
+            ),
+        ),
+        "hard_reset": (
+            doc: "Reset the display hardware.",
+            reply: Result(
+                ok: "()",
+                err: CLike("DisplayError"),
+            ),
+        ),
+        "set_orientation": (
+            doc: "Set the display orientation.",
+            args: {
+                "orientation": (
+                    type: "Orientation",
+                    recv: FromPrimitive("u8"),
+                ),
+            },
+            reply: Result(
+                ok: "()",
+                err: CLike("DisplayError"),
+            ),
+        ),
+        "get_orientation": (
+            doc: "Get the display orientation.",
+            reply: Result(
+                ok: (
+                    type: "Orientation",
+                    recv: FromPrimitive("u8"),
+                ),
+                err: CLike("DisplayError"),
+            ),
+        ),
+        "set_scroll_offset": (
+            doc: "Set the scroll offset.",
+            args: {
+                "offset": "u16",
+            },
+            reply: Result(
+                ok: "()",
+                err: CLike("DisplayError"),
+            ),
+        ),
+        "set_tearing_effect": (
+            doc: "Set the tearing effect.",
+            args: {
+                "tearing_effect": (
+                    type: "TearingEffect",
+                    recv: FromPrimitive("u8"),
+                ),
+            },
+            reply: Result(
+                ok: "()",
+                err: CLike("DisplayError"),
+            ),
+        ),
+    },
+)

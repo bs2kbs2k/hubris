@@ -1,0 +1,26 @@
+[package]
+name = "drv-st7789-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+userlib = { path = "../../sys/userlib" }
+spi-api = { path = "../spi-api" }
+drv-nrf52832-gpio-api = { path = "../nrf52832-gpio-api" }
+drv-st7789-common = { path = "../st7789-common" }
+zerocopy = "0.6.1"
+st7789 = "0.6.1"
+embedded-hal = "0.2.7"
+cfg-if = "0.1.10"
+idol-runtime = { git = "https://github.com/oxidecomputer/idolatry.git" }
+
+[build-dependencies]
+build-util = { path = "../../build/util" }
+idol = { git = "https://github.com/oxidecomputer/idolatry.git" }
+
+# This section is here to discourage RLS/rust-analyzer from doing test builds,
+# since test builds don't work for cross compilation.
+[[bin]]
+name = "drv-user-leds"
+test = false
+bench = false

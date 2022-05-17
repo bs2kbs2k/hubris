@@ -1,5 +1,5 @@
-[uart0]
-address = 0x4000_2000
+[radio]
+address = 0x4000_1000
 size = 0x1000
 
 # spi and twi 0 are on the same peripheral and mutually exclusive
@@ -10,6 +10,18 @@ size = 0x1000
 # spi and twi 1 are on the same peripheral and mutually exclusive
 [spitwi1]
 address = 0x4000_4000
+size = 0x1000
+
+[gpiote]
+address = 0x4000_6000
+size = 0x1000
+
+[wdt]
+address = 0x4001_0000
+size = 0x1000
+
+[nvmc]
+address = 0x4001_E000
 size = 0x1000
 
 # spi2 is on its own and can't also be used as a twi

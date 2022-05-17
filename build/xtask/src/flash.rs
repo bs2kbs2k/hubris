@@ -218,6 +218,7 @@ fn chip_name(board: &str) -> anyhow::Result<&'static str> {
         "gemini-bu-1" | "gimletlet-1" | "gimletlet-2" | "gimlet-a" | "gimlet-b" | "psc-1" | "sidecar-1" => "STM32H753ZITx",
         "stm32g031" => "STM32G031Y8Yx",
          "stm32g070" => "STM32G070KBTx",
+         "pinetime" => "nRF52832_xxAA",
          "stm32g0b1" => anyhow::bail!("This board is not yet supported by probe-rs, please use OpenOCD directly"),
         _ => anyhow::bail!("unrecognized board {}", board),
 
