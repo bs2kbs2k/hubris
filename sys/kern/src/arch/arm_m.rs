@@ -72,7 +72,6 @@
 //! context switches, and just always do full save/restore, eliminating PendSV.
 //! We'll see.
 
-use core::arch::asm;
 use core::ptr::NonNull;
 
 use zerocopy::FromBytes;

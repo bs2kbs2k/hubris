@@ -6,8 +6,7 @@
 
 #![no_std]
 #![no_main]
-#![feature(asm_sym)]
-#![feature(asm_const)]
+#![feature(asm)]
 
 use hubris_num_tasks::NUM_TASKS;
 use test_api::*;
